@@ -1,0 +1,30 @@
+version: "3.3"
+
+services:
+  ssh-container:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "20221:22"
+    # ssh root@localhost -p 2020
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "12345:8000"
+    volumes:
+      - ./app:/app
+
+  app2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "1234:8000"
+    volumes:
+      - ./app:/app
