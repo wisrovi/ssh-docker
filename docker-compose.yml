@@ -1,13 +1,54 @@
 version: "3.3"
 
+# for to use the GPU of the host and restrict the use of the CPU and memory
+x-resources: &resources_gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia # use the GPU of the host
+            device_ids: ["0"] # use the GPU 0
+            capabilities: [gpu] # use the GPU
+
 services:
   ssh-container:
+    <<: *resources_gpu
     build:
       context: .
       dockerfile: Dockerfile
+    image: wisrovi/ssh_docker:v1-gpu
+    # ports:
+    #   - "20221:22"
     ports:
-      - "20221:22"
-    # ssh root@localhost -p 2020
+      - "22"
+    volumes:
+      - ./data:/data         # Carpeta compartida
+    environment:
+      - TZ=Europe/Madrid           # Zona horaria
+    restart: always
+    # ssh root@localhost -p 20221
+    # password: root123
+
+  samba:
+    image: dperson/samba
+    container_name: samba
+    restart: unless-stopped
+    ports:
+      # - "137:137/udp"  # NetBIOS Name Service
+      # - "138:138/udp"  # NetBIOS Datagram Service
+      # - "139:139/tcp"  # NetBIOS Session Service
+      - "8401:445/tcp"  # SMB over TCP
+    volumes:
+      # - ./samba/config:/etc/samba  # Archivos de configuración de Samba
+      - ./data:/data         # Carpeta compartida
+    environment:
+      - TZ=Europe/Madrid           # Zona horaria
+      - USERID=1000                # ID de usuario (personaliza según tu sistema)
+      - GROUPID=1000               # ID de grupo (personaliza según tu sistema)
+      - SAMBA_USERS=user1;password1
+    command: >
+      -u "user1;password1"          # Usuario y contraseña
+      -s "shared;/data;yes;no;yes;all" 
 
   app:
     build:
@@ -18,13 +59,10 @@ services:
       - "12345:8000"
     volumes:
       - ./app:/app
-
-  app2:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "1234:8000"
-    volumes:
-      - ./app:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: always
